@@ -111,3 +111,7 @@ dist
 
 # TernJS port file
 .tern-port
+
+# safe-goods local state (SPEC-001 §Non-functional)
+data/
+uploads/
