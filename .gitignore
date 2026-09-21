@@ -115,3 +115,4 @@ dist
 # safe-goods local state (SPEC-001 §Non-functional)
 data/
 uploads/
+dist.zip
