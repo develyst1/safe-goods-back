@@ -1,9 +1,8 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { seed } from "../db/seed";
 import { env } from "../env";
-import { api, readJson } from "../test/helpers";
+import { api, readJson, resetDb } from "../test/helpers";
 
-beforeAll(seed);
+beforeAll(resetDb);
 
 const creds = { displayName: "Tanya", email: "T1@local.test", password: "password1" };
 
@@ -38,6 +37,18 @@ describe("auth (SPEC-001 endpoints 2–4)", () => {
     const res = await api("/auth/register", { body: { ...creds, email: "t1@LOCAL.test" } });
     expect(res.status).toBe(409);
     expect((await readJson(res)).error.code).toBe("EMAIL_TAKEN");
+  });
+
+  test("AC-4: mixed-case register, lower-case duplicate → 409 EMAIL_TAKEN; upper-case login → 200", async () => {
+    const first = await api("/auth/register", { body: { displayName: "Tanya", email: "Tanya-Seller@qa.test", password: "password1" } });
+    expect(first.status).toBe(201);
+    expect((await readJson(first)).data.user.email).toBe("tanya-seller@qa.test");
+    const dup = await api("/auth/register", { body: { displayName: "Tanya", email: "tanya-seller@qa.test", password: "password1" } });
+    expect(dup.status).toBe(409);
+    expect((await readJson(dup)).error.code).toBe("EMAIL_TAKEN");
+    const login = await api("/auth/login", { body: { email: "TANYA-SELLER@qa.test", password: "password1" } });
+    expect(login.status).toBe(200);
+    expect((await readJson(login)).data.user.email).toBe("tanya-seller@qa.test");
   });
 
   test("register validation → 400", async () => {

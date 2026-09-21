@@ -1,24 +1,14 @@
-import { Database } from "bun:sqlite";
-import { drizzle } from "drizzle-orm/bun-sqlite";
-import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import { mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { env } from "../env";
 import * as schema from "./schema";
 
-const MIGRATIONS_FOLDER = resolve(import.meta.dir, "../../drizzle");
-
-// One connection for the process. Pending migrations in `drizzle/` are applied on boot
-// (idempotent — drizzle records applied ones in `__drizzle_migrations`).
-export const createDb = (path: string = env.DATABASE_PATH) => {
-  if (path !== ":memory:") mkdirSync(dirname(resolve(path)), { recursive: true });
-  const sqlite = new Database(path, { create: true, strict: true });
-  sqlite.exec("PRAGMA journal_mode = WAL;");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return { db, sqlite };
-};
-
-export const { db, sqlite } = createDb();
+// One postgres.js pool for the process (SPEC-002 §Technical decisions → Driver).
+export const sql = postgres(env.DATABASE_URL, { max: 10, onnotice: () => {} });
+export const db = drizzle(sql, { schema });
 export type Db = typeof db;
+
+// `SELECT 1` — used by src/index.ts to fail fast before Bun.serve (AC-6).
+export const pingDb = async (): Promise<void> => {
+  await sql`SELECT 1`;
+};

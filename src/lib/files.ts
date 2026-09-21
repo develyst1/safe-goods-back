@@ -7,7 +7,7 @@ import { env } from "../env";
 import { toFileRef } from "../serializers/room";
 import { AppError } from "./http";
 import { uuid } from "./ids";
-import { nowIso } from "./time";
+import { now } from "./time";
 
 // SPEC-001 endpoints 13/14: image/jpeg | image/png | image/webp, ≤ 5 MB, multipart field `file`.
 const EXT_BY_MIME: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
@@ -35,9 +35,9 @@ export const storeUpload = async (c: Context, opts: { roomId: string; kind: "SLI
     storagePath: relPath,
     mimeType: file.type,
     sizeBytes: file.size,
-    createdAt: nowIso(),
+    createdAt: now(),
   };
-  db.insert(files).values(row).run();
+  await db.insert(files).values(row);
   return toFileRef(row);
 };
 

@@ -21,7 +21,7 @@ export const requireAuth = createMiddleware<AuthEnv>(async (c, next) => {
     throw new AppError(401, "UNAUTHENTICATED", "invalid or expired token");
   }
 
-  const row = db.select({ id: users.id, role: users.role, displayName: users.displayName }).from(users).where(eq(users.id, sub)).get();
+  const [row] = await db.select({ id: users.id, role: users.role, displayName: users.displayName }).from(users).where(eq(users.id, sub));
   if (!row) throw new AppError(401, "UNAUTHENTICATED", "unknown user");
   c.set("user", { id: row.id, role: row.role as AuthUser["role"], displayName: row.displayName });
   await next();

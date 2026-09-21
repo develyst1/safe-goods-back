@@ -1,12 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { app } from "../app";
-import { seed } from "../db/seed";
 import { env } from "../env";
-import { api, readJson, upload } from "../test/helpers";
+import { api, PNG, readJson, resetDb, upload } from "../test/helpers";
 
-beforeAll(seed);
-
-const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+beforeAll(resetDb);
 
 const register = async (name: string) => {
   const res = await api("/auth/register", { body: { displayName: name, email: `${name.toLowerCase()}-pay@local.test`, password: "password1" } });
@@ -70,6 +67,7 @@ describe("payment-in (SPEC-001 endpoints 13, 18–21)", () => {
     expect((await app.request(`/api/v1/files/${slipId}`, { headers: { authorization: `Bearer ${ADMIN}` } })).status).toBe(200);
     expect((await app.request(`/api/v1/files/${slipId}`, { headers: { authorization: `Bearer ${C}` } })).status).toBe(403);
     expect((await app.request(`/api/v1/files/00000000-0000-4000-8000-000000000000`, { headers: { authorization: `Bearer ${B}` } })).status).toBe(404);
+    expect((await app.request(`/api/v1/files/not-a-uuid`, { headers: { authorization: `Bearer ${B}` } })).status).toBe(404);
     expect((await app.request(`/api/v1/files/${slipId}`)).status).toBe(401);
   });
 

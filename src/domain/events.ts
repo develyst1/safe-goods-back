@@ -1,7 +1,7 @@
-// SPEC-001 §Domain vocabulary → eventType. REQ-002 appends new types; the list is open.
+// SPEC-001 §Domain vocabulary → eventType. REQ-003 appends new types; the list is open.
 import type { Db } from "../db/client";
 import { roomEvents } from "../db/schema";
-import { nowIso } from "../lib/time";
+import { now } from "../lib/time";
 import type { ActorRole } from "./roomStatus";
 
 export type EventType =
@@ -20,5 +20,6 @@ export type EventType =
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 // Called inside the same transaction as the room update.
-export const addEvent = (tx: Db | Tx, roomId: string, type: EventType, actorRole: ActorRole, actorUserId: string | null = null, note: string | null = null) =>
-  tx.insert(roomEvents).values({ roomId, type, actorRole, actorUserId, note, createdAt: nowIso() }).run();
+export const addEvent = async (tx: Db | Tx, roomId: string, type: EventType, actorRole: ActorRole, actorUserId: string | null = null, note: string | null = null) => {
+  await tx.insert(roomEvents).values({ roomId, type, actorRole, actorUserId, note, createdAt: now() });
+};

@@ -6,13 +6,12 @@ import { ok } from "../lib/http";
 import { requireAuth, type AuthEnv } from "../middleware/auth";
 
 // SPEC-001 endpoint 5
-export const categories = new Hono<AuthEnv>().get("/", requireAuth, (c) =>
+export const categories = new Hono<AuthEnv>().get("/", requireAuth, async (c) =>
   ok(
     c,
-    db
+    await db
       .select({ id: categoriesTable.id, kind: categoriesTable.kind, nameTh: categoriesTable.nameTh })
       .from(categoriesTable)
-      .orderBy(asc(categoriesTable.sort), asc(categoriesTable.id))
-      .all(),
+      .orderBy(asc(categoriesTable.sort), asc(categoriesTable.id)),
   ),
 );

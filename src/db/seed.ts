@@ -1,44 +1,48 @@
-// `bun run seed` — idempotent (SPEC-001 §Data Model → Seed).
-import { eq } from "drizzle-orm";
+// `bun run seed` — idempotent (SPEC-001 §Data Model → Seed; SPEC-002 → ON CONFLICT DO NOTHING).
+import { eq, sql as dsql } from "drizzle-orm";
 import { env } from "../env";
 import { uuid } from "../lib/ids";
-import { nowIso } from "../lib/time";
-import { db } from "./client";
+import { now } from "../lib/time";
+import { db, sql } from "./client";
 import { categories, settings, users } from "./schema";
 
 export const seed = async () => {
-  const now = nowIso();
+  const at = now();
 
-  db.insert(categories)
+  await db
+    .insert(categories)
     .values([
       { id: 1, kind: "IN_GAME", nameTh: "ไอเทม/ไอดีเกม", sort: 1 },
       { id: 2, kind: "PHYSICAL", nameTh: "สินค้าส่งพัสดุ", sort: 2 },
     ])
-    .onConflictDoNothing()
-    .run();
+    .onConflictDoNothing();
 
-  db.insert(settings).values({ id: 1, feeRatePercent: 20, feeMinimum: 20, updatedAt: now }).onConflictDoNothing().run();
+  await db.insert(settings).values({ id: 1, feeRatePercent: 20, feeMinimum: 20, updatedAt: at }).onConflictDoNothing();
 
   const email = env.ADMIN_EMAIL.toLowerCase();
-  const existing = db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+  const [existing] = await db.select({ id: users.id }).from(users).where(eq(dsql`lower(${users.email})`, email));
   if (!existing) {
-    db.insert(users)
+    await db
+      .insert(users)
       .values({
         id: uuid(),
         email,
         passwordHash: await Bun.password.hash(env.ADMIN_PASSWORD, { algorithm: "argon2id" }),
         displayName: env.ADMIN_DISPLAY_NAME,
         role: "ADMIN",
-        createdAt: now,
-        updatedAt: now,
+        createdAt: at,
+        updatedAt: at,
       })
-      .run();
+      .onConflictDoNothing();
   }
 
-  const c = db.select().from(categories).all().length;
-  const s = db.select().from(settings).get();
-  const admins = db.select({ email: users.email, role: users.role }).from(users).where(eq(users.role, "ADMIN")).all();
+  const c = (await db.select().from(categories)).length;
+  const [s] = await db.select().from(settings);
+  const admins = await db.select({ email: users.email, role: users.role }).from(users).where(eq(users.role, "ADMIN"));
   console.log(`seeded: categories=${c} settings=${JSON.stringify(s)} admins=${JSON.stringify(admins)}`);
 };
 
-if (import.meta.main) await seed();
+if (import.meta.main) {
+  await seed();
+  await sql.end();
+}

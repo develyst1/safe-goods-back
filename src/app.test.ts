@@ -1,9 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { z } from "zod";
 import { app } from "./app";
 import { AppError, ok } from "./lib/http";
 import { validate } from "./lib/validate";
+import { readJson, resetDb } from "./test/helpers";
+
+beforeAll(resetDb);
 
 // Throwaway routes must be mounted before the first request (Hono freezes its router then).
 const t = new Hono();
@@ -16,8 +19,6 @@ t.get("/boom", () => {
 });
 app.route("/test", t);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const readJson = (r: Response): Promise<any> => r.json();
 const json = (body: unknown) => ({ method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
 
 describe("envelope (SPEC-001 §Envelope & errors)", () => {

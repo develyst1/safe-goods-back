@@ -1,15 +1,15 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
-import { db } from "../db/client";
-import { rooms } from "../db/schema";
-import { seed } from "../db/seed";
+import { sql } from "../db/client";
 import { env } from "../env";
 import { runAutoRelease } from "../jobs/autoRelease";
-import { api, readJson, upload } from "../test/helpers";
+import { api, PNG, readJson, resetDb, upload } from "../test/helpers";
 
-beforeAll(seed);
+beforeAll(resetDb);
 
-const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+// Raw UPDATE on the test DB: put a room's auto_release_at in the past (TASK-012 §2).
+const makeDue = (code: string) => sql`UPDATE rooms SET auto_release_at = now() - interval '1 second' WHERE code = ${code}`;
+const countEvents = async (code: string, type: string) =>
+  Number((await sql`SELECT count(*)::int AS n FROM room_events e JOIN rooms r ON r.id = e.room_id WHERE r.code = ${code} AND e.type = ${type}`)[0]?.n ?? 0);
 
 const register = async (name: string) => {
   const res = await api("/auth/register", { body: { displayName: name, email: `${name.toLowerCase()}-dlv@local.test`, password: "password1" } });
@@ -113,11 +113,10 @@ describe("delivery → payout (SPEC-001 endpoints 14–17, 22–24)", () => {
   });
 
   test("auto-release: future → 0; past → released by SYSTEM; second run → 0 (AC-20)", async () => {
-    expect(runAutoRelease()).toBe(0); // R1's autoReleaseAt is 3 days out
+    expect(await runAutoRelease()).toBe(0); // R1's autoReleaseAt is 3 days out
     expect((await room(R1, B)).status).toBe("DELIVERED_WAITING_CONFIRM");
 
-    const r1 = db.select({ id: rooms.id }).from(rooms).where(eq(rooms.code, R1)).get()!;
-    db.update(rooms).set({ autoReleaseAt: new Date(Date.now() - 1000).toISOString() }).where(eq(rooms.id, r1.id)).run();
+    await makeDue(R1);
 
     expect((await api("/admin/jobs/auto-release", { token: B, method: "POST" })).status).toBe(403);
     const job = await api("/admin/jobs/auto-release", { token: ADMIN, method: "POST" });
@@ -127,6 +126,33 @@ describe("delivery → payout (SPEC-001 endpoints 14–17, 22–24)", () => {
     expect(released.events.at(-1)).toMatchObject({ type: "AUTO_RELEASED", actorRole: "SYSTEM", actorDisplayName: null });
 
     expect((await readJson(await api("/admin/jobs/auto-release", { token: ADMIN, method: "POST" }))).data).toEqual({ released: 0 });
+  });
+
+  test("status-guard race: two concurrent received → exactly one 200 + one 409, one RECEIVED_CONFIRMED event (SPEC-002 §Flow)", async () => {
+    const R4 = await paidRoom(1);
+    await upload(`/rooms/${R4}/evidence`, A, { bytes: PNG, type: "image/png", name: "e.png" });
+    await api(`/rooms/${R4}/deliver`, { token: A, body: {} });
+    const [x, y] = await Promise.all([api(`/rooms/${R4}/received`, { token: B, method: "POST" }), api(`/rooms/${R4}/received`, { token: B, method: "POST" })]);
+    expect([x.status, y.status].sort()).toEqual([200, 409]);
+    const lost = x.status === 409 ? x : y;
+    expect((await readJson(lost)).error.code).toBe("INVALID_STATE");
+    expect(await countEvents(R4, "RECEIVED_CONFIRMED")).toBe(1);
+    expect(await room(R4, B)).toMatchObject({ status: "WAITING_PAYOUT", releasedBy: "BUYER" });
+  });
+
+  test("auto-release with two due rooms → 2, again → 0, two AUTO_RELEASED events", async () => {
+    const codes = [await paidRoom(1), await paidRoom(1)];
+    for (const cd of codes) {
+      await upload(`/rooms/${cd}/evidence`, A, { bytes: PNG, type: "image/png", name: "e.png" });
+      expect((await readJson(await api(`/rooms/${cd}/deliver`, { token: A, body: {} }))).data.status).toBe("DELIVERED_WAITING_CONFIRM");
+      await makeDue(cd);
+    }
+    expect(await runAutoRelease()).toBe(2);
+    expect(await runAutoRelease()).toBe(0);
+    for (const cd of codes) {
+      expect(await countEvents(cd, "AUTO_RELEASED")).toBe(1);
+      expect(await room(cd, B)).toMatchObject({ status: "WAITING_PAYOUT", releasedBy: "SYSTEM", autoReleaseAt: null });
+    }
   });
 
   test("payout → COMPLETED; both parties' goodCloseCount +1; closed room rejects every action (AC-21, AC-22, AC-25)", async () => {

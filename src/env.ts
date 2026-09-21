@@ -1,4 +1,5 @@
 // Typed env with defaults from SPEC-001 §Non-functional. Bun loads `.env` automatically.
+// SPEC-002: DATABASE_URL is required — no default, no fallback (AC-6).
 const str = (key: string, fallback: string): string => process.env[key] ?? fallback;
 const int = (key: string, fallback: number): number => {
   const raw = process.env[key];
@@ -8,9 +9,15 @@ const int = (key: string, fallback: number): number => {
   return n;
 };
 
+const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
+if (!databaseUrl) {
+  console.error("DATABASE_URL is missing");
+  process.exit(1);
+}
+
 export const env = {
   PORT: int("PORT", 3001),
-  DATABASE_PATH: str("DATABASE_PATH", "data/safe-goods.sqlite"),
+  DATABASE_URL: databaseUrl,
   UPLOAD_DIR: str("UPLOAD_DIR", "uploads"),
   JWT_SECRET: str("JWT_SECRET", "local-dev-secret-change-me"),
   AUTO_RELEASE_SECONDS: int("AUTO_RELEASE_SECONDS", 259_200),
@@ -20,3 +27,6 @@ export const env = {
   ADMIN_PASSWORD: str("ADMIN_PASSWORD", "admin1234"),
   ADMIN_DISPLAY_NAME: str("ADMIN_DISPLAY_NAME", "Admin"),
 } as const;
+
+// `scheme://user:secret@host/db` → `scheme://user:***@host/db` — for log lines only.
+export const maskDatabaseUrl = (url: string): string => url.replace(/(:\/\/[^:/@]+:)[^@]*@/, "$1***@");

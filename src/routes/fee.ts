@@ -15,10 +15,10 @@ const quoteSchema = z.object({ priceMode: priceModeSchema, feePayer: feePayerSch
 
 export const fee = new Hono<AuthEnv>()
   // SPEC-001 endpoint 6
-  .get("/settings", requireAuth, (c) => ok(c, getSettings(db)))
+  .get("/settings", requireAuth, async (c) => ok(c, await getSettings(db)))
   // SPEC-001 endpoint 7 — no auth; uses the CURRENT settings
-  .post("/quote", validate("json", quoteSchema), (c) => {
+  .post("/quote", validate("json", quoteSchema), async (c) => {
     const body = c.req.valid("json");
-    const s = getSettings(db);
+    const s = await getSettings(db);
     return ok(c, computeFee({ ...body, ratePercent: s.feeRatePercent, minimum: s.feeMinimum }));
   });

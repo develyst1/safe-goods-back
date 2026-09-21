@@ -1,8 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { seed } from "../db/seed";
-import { api, readJson } from "../test/helpers";
+import { api, badTimestamps, ISO_Z, readJson, resetDb } from "../test/helpers";
 
-beforeAll(seed);
+beforeAll(resetDb);
 
 const register = async (name: string) => {
   const res = await api("/auth/register", { body: { displayName: name, email: `${name.toLowerCase()}-rooms@local.test`, password: "password1" } });
@@ -65,6 +64,13 @@ describe("rooms core (SPEC-001 endpoints 5, 8–12)", () => {
     });
     expect(room.events).toHaveLength(1);
     expect(room.events[0]).toMatchObject({ type: "ROOM_OPENED", actorRole: "SELLER", actorDisplayName: "Alice" });
+  });
+
+  test("timestamp shape: every *At in a Room is null or an ISO-8601 Z string (SPEC-002)", async () => {
+    const room = (await readJson(await api(`/rooms/${code}`, { token: A }))).data;
+    expect(badTimestamps(room)).toEqual([]);
+    expect(room.createdAt).toMatch(ISO_Z);
+    expect(room.events[0].createdAt).toMatch(ISO_Z);
   });
 
   test("open as BUYER → WAITING_SELLER_JOIN; unknown category → 400", async () => {
