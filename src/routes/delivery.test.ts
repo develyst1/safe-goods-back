@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { sql } from "../db/client";
+import { and, count, eq, sql } from "drizzle-orm";
+import { db } from "../db/client";
+import { roomEvents, rooms } from "../db/schema";
 import { env } from "../env";
 import { runAutoRelease } from "../jobs/autoRelease";
 import { api, PNG, readJson, resetDb, upload } from "../test/helpers";
@@ -7,9 +9,9 @@ import { api, PNG, readJson, resetDb, upload } from "../test/helpers";
 beforeAll(resetDb);
 
 // Raw UPDATE on the test DB: put a room's auto_release_at in the past (TASK-012 §2).
-const makeDue = (code: string) => sql`UPDATE rooms SET auto_release_at = now() - interval '1 second' WHERE code = ${code}`;
+const makeDue = (code: string) => db.update(rooms).set({ autoReleaseAt: sql`now() - interval '1 second'` }).where(eq(rooms.code, code));
 const countEvents = async (code: string, type: string) =>
-  Number((await sql`SELECT count(*)::int AS n FROM room_events e JOIN rooms r ON r.id = e.room_id WHERE r.code = ${code} AND e.type = ${type}`)[0]?.n ?? 0);
+  (await db.select({ n: count() }).from(roomEvents).innerJoin(rooms, eq(rooms.id, roomEvents.roomId)).where(and(eq(rooms.code, code), eq(roomEvents.type, type))))[0]?.n ?? 0;
 
 const register = async (name: string) => {
   const res = await api("/auth/register", { body: { displayName: name, email: `${name.toLowerCase()}-dlv@local.test`, password: "password1" } });

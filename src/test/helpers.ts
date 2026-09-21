@@ -1,10 +1,11 @@
+import { sql } from "drizzle-orm";
 import { app } from "../app";
-import { sql } from "../db/client";
+import { db } from "../db/client";
 import { seed } from "../db/seed";
 
 // Every test file calls this in beforeAll: wipe every table (identity restarted), then re-seed.
 export const resetDb = async () => {
-  await sql.unsafe("TRUNCATE users, categories, settings, rooms, files, room_events RESTART IDENTITY CASCADE");
+  await db.execute(sql`TRUNCATE users, categories, settings, rooms, files, room_events RESTART IDENTITY CASCADE`);
   await seed();
 };
 

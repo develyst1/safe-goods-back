@@ -9,8 +9,10 @@ const int = (key: string, fallback: number): number => {
   return n;
 };
 
+// Under `bun test` (Bun sets NODE_ENV=test) the URL is optional and never opened — tests run on an
+// embedded PGlite installed by src/test/setup.ts (SPEC-002 §Change 1).
 const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
-if (!databaseUrl) {
+if (!databaseUrl && process.env.NODE_ENV !== "test") {
   console.error("DATABASE_URL is missing");
   process.exit(1);
 }

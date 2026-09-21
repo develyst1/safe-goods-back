@@ -8,7 +8,6 @@ Bun + Hono API for **เว็บกลาง** (safe-goods) on PostgreSQL.
    The owner supplies the dev-DB URL; for your own machine, a local Postgres:
    ```
    createdb safe-goods_local
-   createdb safe-goods_test          # for `bun test` (TEST_DATABASE_URL)
    # then set DATABASE_URL to the safe-goods_local database, same form as .env.example
    ```
 2. `bun install`
@@ -18,4 +17,4 @@ Bun + Hono API for **เว็บกลาง** (safe-goods) on PostgreSQL.
 
 ## Tests
 
-`bun test` runs against `TEST_DATABASE_URL` (a local database it migrates and truncates — never point it at shared data).
+`bun test` needs no database and no env — it runs an embedded PostgreSQL (PGlite) in memory and never touches `DATABASE_URL`.

@@ -3,7 +3,7 @@ import { eq, sql as dsql } from "drizzle-orm";
 import { env } from "../env";
 import { uuid } from "../lib/ids";
 import { now } from "../lib/time";
-import { db, sql } from "./client";
+import { closeDb, db } from "./client";
 import { categories, settings, users } from "./schema";
 
 export const seed = async () => {
@@ -44,5 +44,5 @@ export const seed = async () => {
 
 if (import.meta.main) {
   await seed();
-  await sql.end();
+  await closeDb();
 }
