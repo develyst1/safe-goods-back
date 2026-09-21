@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --compile --minify --outfile dist/safe-goods-back",
     "start": "bun src/index.ts",
     "seed": "bun src/db/seed.ts",
     "db:generate": "drizzle-kit generate",
